@@ -28,6 +28,18 @@ if %ERRORLEVEL% neq 0 (
 	exit /b 1
 )
 
+echo Assembling loader...
+bin\vasmarm_std_win32.exe -L build\loader.txt -m250 -Fbin -opt-adr -o build\loader.bin lib\loader.asm
+
+if %ERRORLEVEL% neq 0 (
+	echo Failed to assemble code.
+	exit /b 1
+)
+
+echo Compressing exe...
+rem bin\lz4.exe -f build\proto-arc.bin build\proto-arc.lz4
+bin\Shrinkler.exe -d -b -p -z build\tipsy-cube.bin build\tipsy-cube.shri
+
 echo Making !folder...
 set FOLDER="!Tipsy"
 if EXIST %FOLDER% del /Q "%FOLDER%"
@@ -35,7 +47,8 @@ if NOT EXIST %FOLDER% mkdir %FOLDER%
 
 echo Adding files...
 copy folder\*.* "%FOLDER%\*.*"
-copy build\tipsy-cube.bin "%FOLDER%\!RunImage,ff8"
+copy build\loader.bin "%FOLDER%\!RunImage,ff8"
+copy build\tipsy-cube.shri "%FOLDER%\Demo,ffd"
 
 echo Copying !folder...
 set HOSTFS=..\arculator\hostfs
