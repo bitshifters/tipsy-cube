@@ -197,7 +197,7 @@ scroller_message:
     .byte "ift -- Torment -- YM Rockerz.  Tipsy hugs to Lemon. and Spaceballs for the Amiga inspiration.  Wishi"
     .byte "ng everyone a Happy New Year for 2023.  See you all at NOVA in June!"
     .byte 0
-    .align 4
+    .p2align 2
 
 
 font_data:

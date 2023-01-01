@@ -6,7 +6,13 @@
 
 ; ============================================================================
 
-.align 4
+stack:
+    .skip 1024
+stack_base:
+
+; ============================================================================
+
+.p2align 2
 vidc_table_1:
 	.skip 256*4*4
 
@@ -22,8 +28,10 @@ memc_table:
 
 ; ============================================================================
 
+.if _RUBBER_CUBE != 0
 polygon_span_table:
     .skip Screen_Height * 4     ; per scanline.
+.endif
 
 ; ============================================================================
 
@@ -34,6 +42,7 @@ reciprocal_table:
 
 ; ============================================================================
 
+.if _RUBBER_CUBE
 ; For each frame:               [MAX_FRAMES]
 ;  long number_of_faces         (4)
 ;  long object_min_max_y        (4) max in high word, min in low word.
@@ -52,6 +61,7 @@ rubber_cube_face_list:
 rubber_cube_edge_list:
     .skip POLYGON_EDGE_SIZE * OBJ_MAX_EDGES_PER_FACE * OBJ_MAX_VISIBLE_FACES * RUBBER_CUBE_MAX_FRAMES
     ; 16 * 4 * 3 * 256 = 192 * 256
+.endif
 
 ; ============================================================================
 
@@ -63,4 +73,3 @@ gen_code_start:
 .endif
 
 ; ============================================================================
-

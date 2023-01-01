@@ -156,13 +156,13 @@ One:                            ; } else {
 assert1: ;The error block
     .long 18
 	.byte "assert(context_index < contexts.size()); FAILED"
-	.align 4
+	.p2align 2
 	.long 0
 
 assert3: ;The error block
     .long 18
 	.byte "assert(new_prob > 0 && new_prob < 0x10000); FAILED"
-	.align 4
+	.p2align 2
 	.long 0
 .endif
 
@@ -407,19 +407,19 @@ ShriMagic:
 ShriFail: ;The error block
     .long 18
 	.byte "Data does not begin with magic 'Shri'."
-	.align 4
+	.p2align 2
 	.long 0
 
 ParityFail: ;The error block
     .long 18
 	.byte "Shrinkler header parity flag mismatch."
-	.align 4
+	.p2align 2
 	.long 0
 
 SizeFail: ;The error block
     .long 18
 	.byte "Decompressed size does not match uncompressed size."
-	.align 4
+	.p2align 2
 	.long 0
 
 .endif

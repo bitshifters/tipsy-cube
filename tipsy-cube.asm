@@ -44,11 +44,11 @@
 ; ============================================================================
 
 Start:
-    adrl sp, stack_base
+    ldr sp, stack_p
 	B main
 
-.skip 1024
-stack_base:
+stack_p:
+	.long stack_base
 
 ; ============================================================================
 ; Main
@@ -283,7 +283,7 @@ main_loop:
 error_noscreenmem:
 	.long 0
 	.byte "Cannot allocate screen memory!"
-	.align 4
+	.p2align 2
 	.long 0
 
 .if _DEBUG
@@ -621,22 +621,22 @@ lemon_logos:
 bit_string:
 	.byte "bit"
 	.byte 0
-	.align 4
+	.p2align 2
 
 shifters_string:
 	.byte "shifters"
 	.byte 0
-	.align 4
+	.p2align 2
 
 slip_string:
 	.byte "slip"
 	.byte 0
-	.align 4
+	.p2align 2
 
 stream_string:
 	.byte "stream"
 	.byte 0
-	.align 4
+	.p2align 2
 .endif
 
 .include "lib/maths.asm"

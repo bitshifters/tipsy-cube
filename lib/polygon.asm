@@ -216,6 +216,7 @@ polygon_quad_to_edge_list:
 ; Params:
 ;  R12=ptr to edge_dda_table [xs, m, ys, ye]
 ; Trashes: r0, r3-7, r11
+.if _RUBBER_CUBE != 0
 polygon_rasterise_edge:
     ldmia r12!, {r3-r6}         ; [xs, ys, ye, m]
     adr r11, polygon_span_table
@@ -317,10 +318,9 @@ polygon_plot_quad:
 polyerror: ;The error block
 .long 18
 .byte "Degenerate polygon?"
-.align 4
+.p2align 2
 .long 0
 .endif
-
 
 ; Blat the spans from the table to the screen.
 ; Params:
@@ -403,7 +403,7 @@ polygon_plot_spans:
 spanerror: ;The error block
 .long 18
 .byte "Span width too long!"
-.align 4
+.p2align 2
 .long 0
 .endif
 
@@ -419,3 +419,4 @@ polygon_max_y:
 
 polygon_edge_list:
     .skip POLYGON_EDGE_SIZE * OBJ_MAX_EDGES_PER_FACE     ; 4 words per edge.
+.endif

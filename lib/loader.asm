@@ -59,7 +59,7 @@ main:
 
 filename:
 	.byte "<Demo$Dir>.Demo",0
-	.align 4
+	.p2align 2
 
 endofram:
     .long 0x8000 + _WIMPSLOT - (reloc_end - reloc_start)
