@@ -641,6 +641,10 @@ stream_string:
 
 .include "lib/maths.asm"
 .include "lib/3d-scene.asm"
+
+reciprocal_table_p:
+    .long reciprocal_table
+
 .include "lib/rubber-cube.asm"
 .include "lib/mode9-screen.asm"
 ;.include "lib/mode9-plot.asm"
@@ -694,6 +698,28 @@ grey_palette:
 	.long 0x00EEEEEE
 	.long 0x00FFFFFF
 .endif
+
+scroller_message:
+; At 1 pixel/frame = 6.4s to traverse the screen.
+; Speed = 40 chars/6.4s = 6.25 chars/s
+; 16 patterns at 6 ticks/row = 122.88s
+; So in 122.88s 122.88s * 6.25 chars/s = 768 chars.
+;                                                                                                             1
+;                   1         2         3         4         5         6         7         8         9         0
+;          1........0.........0.........0.........0.........0.........0.........0.........0.........0.........0
+    .byte "                                                    Is it a terrible twister?  No... this is the fir"
+    .byte "st ever tipsy cube intro for the Acorn Archimedes!  Brought to you by Bitshifters & Slipstream for t"
+    .byte "he FieldFX 2022 New Year's demostream.  Inspired by the Gerp 2014 rubber vector challenge, just rock"
+    .byte "ing up 8 years late in true Archie fashion.  Credits..  code by kieran -- music by ToBach -- QTM/Ras"
+    .byte "terMan by Phoenix^Quantum -- special thanks to Progen.  Tipsy cheers go out to...  Ate-Bit -- CRTC -"
+    .byte "- DESiRE -- Hooy Program -- Inverse Phase -- Logicoma -- Loonies -- ne7 -- Proxima -- Rabenauge -- R"
+    .byte "ift -- Torment -- YM Rockerz.  Tipsy hugs to Lemon. and Spaceballs for the Amiga inspiration.  Wishi"
+    .byte "ng everyone a Happy New Year for 2023.  See you all at NOVA in June!"
+    .byte 0
+    .p2align 2
+
+font_data:
+    .incbin "build/font.bin"
 
 .if _DRAW_LOGO
 logo_data:

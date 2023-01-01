@@ -332,8 +332,13 @@ rocket_sync_get_val:
 	; return k[0].value + (k[1].value - k[0].value) * t;
     sub r6, r6, r4                  ; (k[1].row - k[0].row) ; const for key
     sub r8, r8, r4                  ; (row - k[0].row)
+.if _USE_RECIPROCAL_TABLE
+    ldr r3, reciprocal_table_p
+    ldr r1, [r3, r6, lsl #2+Reciprocal_s]
+.else
     adr r3, divisor_table
     ldr r1, [r3, r6, lsl #2]        ; r6 = 1 / (k[1].row - k[0].row) [fp 0.16]  ; const for key
+.endif
     mul r8, r1, r8                  ; r8 = (row - k[0].row) / (k[1].row - k[0].row) [fp 0.16]
     mov r8, r8, asr #6              ; [fp 0.10]
 
@@ -405,6 +410,7 @@ track_rubber_line_split:
 track_rubber_y_pos:
     .incbin "data/rocket/rubber_y_pos.track"
 
+.if _USE_RECIPROCAL_TABLE!=1
 ; TODO: Use shared divide function.
 divisor_table:
     .long 0
@@ -414,5 +420,6 @@ divisor_table:
     .long one_over
     .set div, div + 1
     .endr
+.endif
 
 .endif
