@@ -4,8 +4,16 @@ echo Start build...
 if EXIST build del /Q build\*.*
 if NOT EXIST build mkdir build
 
+echo Making assets..
+call make_assets.bat
+
+if %ERRORLEVEL% neq 0 (
+	echo Failed to make assets.
+	exit /b 1
+)
+
 echo Assembling code...
-bin\vasmarm_std_win32.exe -L build\compile.txt -m250 -Fbin -opt-adr -o build\proto-arc.bin proto-arc.asm
+bin\vasmarm_std_win32.exe -L build\compile.txt -m250 -Fbin -opt-adr -o build\tipsy-cube.bin tipsy-cube.asm
 
 if %ERRORLEVEL% neq 0 (
 	echo Failed to assemble code.
@@ -19,7 +27,7 @@ if NOT EXIST %FOLDER% mkdir %FOLDER%
 
 echo Adding files...
 copy folder\*.* "%FOLDER%\*.*"
-copy build\proto-arc.bin "%FOLDER%\!RunImage,ff8"
+copy build\tipsy-cube.bin "%FOLDER%\!RunImage,ff8"
 copy "data\music\arcchoon.mod" "%FOLDER%\Music,001"
 
 echo Copying !folder...

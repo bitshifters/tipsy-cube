@@ -9,16 +9,16 @@
 ; ============================================================================
 
 sinus_table:
-	.incbin "data/sine_8192.bin"
+	.incbin "build/sine_8192.bin"
 
 ; ============================================================================
 
 .if _INCLUDE_SQRT
 sqrt_table:
-	.incbin "data/sqrt_1024.bin"
+	.incbin "build/sqrt_1024.bin"
 
 rsqrt_table:
-	.incbin "data/rsqrt_1024.bin"
+	.incbin "build/rsqrt_1024.bin"
 .endif
 
 ; ============================================================================

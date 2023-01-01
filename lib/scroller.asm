@@ -201,4 +201,4 @@ scroller_message:
 
 
 font_data:
-    .incbin "data/font.bin"
+    .incbin "build/font.bin"

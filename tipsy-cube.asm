@@ -703,7 +703,7 @@ grey_palette:
 
 .if _DRAW_LOGO
 logo_data:
-.incbin "data/logo.bin"
+.incbin "build/logo.bin"
 logo_end:
 .endif
 
