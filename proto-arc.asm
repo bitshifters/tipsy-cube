@@ -2,23 +2,40 @@
 ; Prototype Framework - stripped back from stniccc-archie.
 ; ============================================================================
 
-.equ _DEBUG, 1
+.equ _DEBUG, 0
+.equ _ENABLE_RASTERMAN, 1
 .equ _ENABLE_MUSIC, 1
-.equ _FIX_FRAME_RATE, 0					; useful for !DDT breakpoints
-.equ _SYNC_EDITOR, 1
+.equ _ENABLE_ROCKET, 1
+.equ _SYNC_EDITOR, (_ENABLE_ROCKET && 0)
+.equ _FIX_FRAME_RATE, 1					; useful for !DDT breakpoints
+
+.equ _DEBUG_RASTERS, (_DEBUG && !_ENABLE_RASTERMAN && 1)
+
+.equ _RUBBER_CUBE, 1
+.equ _DRAW_LOGO, 0
+.equ _LEMON_LOGOS, 1
 
 .equ Screen_Banks, 3
 .equ Screen_Mode, 9
 .equ Screen_Width, 320
 .equ Screen_Height, 256
-.equ Window_Width, 256
-.equ Window_Height, 200
-.equ Screen_Stride, Screen_Width/2		; 4bpp
+.equ Mode_Height, 256
+.equ Screen_PixelsPerByte, 2
+.equ Screen_Stride, Screen_Width/Screen_PixelsPerByte
 .equ Screen_Bytes, Screen_Stride*Screen_Height
-.equ Window_Stride, Screen_Width/2		; 4bpp
-.equ Window_Bytes, Window_Stride*Window_Height
+.equ Mode_Bytes, Screen_Stride*Mode_Height
+
+.equ Logo_Y_Pos, 16
 
 .include "lib/swis.h.asm"
+.include "lib/config.h.asm"
+
+.macro SET_BORDER rgb
+	.if _DEBUG_RASTERS
+	mov r4, #\rgb
+	bl palette_set_border
+	.endif
+.endm
 
 .org 0x8000
 
@@ -38,28 +55,11 @@ stack_base:
 ; ============================================================================
 
 main:
-	MOV r0,#22	;Set MODE
-	SWI OS_WriteC
-	MOV r0,#Screen_Mode
-	SWI OS_WriteC
+	SWI OS_WriteI + 22		; Set base MODE
+	SWI OS_WriteI + Screen_Mode
 
-	; Set screen size for number of buffers
-	MOV r0, #DynArea_Screen
-	SWI OS_ReadDynamicArea
-	MOV r0, #DynArea_Screen
-	MOV r2, #Screen_Bytes * Screen_Banks
-	SUBS r1, r2, r1
-	SWI OS_ChangeDynamicArea
-	MOV r0, #DynArea_Screen
-	SWI OS_ReadDynamicArea
-	CMP r1, #Screen_Bytes * Screen_Banks
-	ADRCC r0, error_noscreenmem
-	SWICC OS_GenerateError
-
-	MOV r0,#23	;Disable cursor
-	SWI OS_WriteC
-	MOV r0,#1
-	SWI OS_WriteC
+	SWI OS_WriteI + 23		; Disable cursor
+	SWI OS_WriteI + 1
 	MOV r0,#0
 	SWI OS_WriteC
 	SWI OS_WriteC
@@ -70,16 +70,33 @@ main:
 	SWI OS_WriteC
 	SWI OS_WriteC
 
+	; Set screen size for number of buffers
+	MOV r0, #DynArea_Screen
+	SWI OS_ReadDynamicArea
+	MOV r0, #DynArea_Screen
+	MOV r2, #Mode_Bytes * Screen_Banks
+	SUBS r1, r2, r1
+	SWI OS_ChangeDynamicArea
+	MOV r0, #DynArea_Screen
+	SWI OS_ReadDynamicArea
+	CMP r1, #Mode_Bytes * Screen_Banks
+	ADRCC r0, error_noscreenmem
+	SWICC OS_GenerateError
+
 	; LOAD STUFF HERE!
 
 .if _ENABLE_MUSIC
+	; QTM Init.
+	; Required to make QTM play nicely with RasterMan.
+	mov r0, #4
+	mov r1, #-1
+	mov r2, #-1
+	swi QTM_SoundControl
+
 	; Load module
 	adrl r0, module_filename
 	mov r1, #0
 	swi QTM_Load
-
-	mov r0, #48
-	swi QTM_SetSampleSpeed
 .endif
 
 	; Clear all screen buffers
@@ -98,6 +115,17 @@ main:
 	cmp r1, #Screen_Banks
 	ble .1
 
+	; EARLY INITIALISATION HERE! (Tables etc.)
+	.if _ENABLE_RASTERMAN
+	bl rasters_init
+	.endif
+	bl maths_init
+	; bl initialise_span_buffer
+
+	.if _ENABLE_ROCKET
+	bl rocket_init
+	.endif
+
 	; Start with bank 1
 	mov r1, #1
 	str r1, scr_bank
@@ -109,25 +137,79 @@ main:
 	SWI OS_Claim
 
 	; Claim the Event vector
+	.if !_ENABLE_RASTERMAN
 	mov r0, #EventV
 	adr r1, event_handler
 	mov r2, #0
 	swi OS_AddToVector
+	.endif
 
 	; LATE INITALISATION HERE!
+	bl init_3d_scene
+	.if _RUBBER_CUBE
+	bl init_rubber_cube
+	.endif
+
+	adr r2, grey_palette
+	bl palette_set_block
 
 	; Sync tracker.
-	bl rocket_init
-	bl rocket_start
+	.if _ENABLE_ROCKET
+	bl rocket_start		; handles music.
+	.else
+	.IF _ENABLE_MUSIC
+	swi QTM_Start
+	.endif
+	.endif
 
-	; Enable Vsync event
+	; Fire up the RasterMan!
+	.if _ENABLE_RASTERMAN
+	swi RasterMan_Install
+	.else
+	; Enable Vsync 
 	mov r0, #OSByte_EventEnable
 	mov r1, #Event_VSync
 	SWI OS_Byte
+	.endif
 
 main_loop:
 
+	; R0 = vsync delta since last frame.
+	.if _ENABLE_ROCKET
+	ldr r0, vsync_delta
+	bl rocket_update
+	.endif
+
+	SET_BORDER 0x0000ff	; red
+	.if _RUBBER_CUBE
+	bl update_rubber_cube
+	.else
+	bl update_3d_scene
+	.endif
+
+	SET_BORDER 0xffff00	; cyan
+	bl update_scroller
+
+	SET_BORDER 0x000000	; black
+	; Really we need something more sophisticated here.
+	; Block only if there's no free buffer to write to.
+
+	.if _ENABLE_RASTERMAN
+	swi RasterMan_Wait
+	mov r0, #1				; TODO: Ask Steve for RasterMan_GetVsyncCounter.
+	.else
+
 	; Block if we've not even had a vsync since last time - we're >50Hz!
+	.if (Screen_Banks == 2 && 0)
+	; Block if there's a buffer pending to be displayed when double buffered.
+	; This means that we overran the previous frame. Triple buffering may
+	; help here. Or not. ;)
+	.2:
+	ldr r1, buffer_pending
+	cmp r1, #0
+	bne .2	
+	.endif
+
 	ldr r1, last_vsync
 .1:
 	ldr r2, vsync_count
@@ -139,30 +221,62 @@ main_loop:
 	sub r0, r2, r1
 	.endif
 	str r2, last_vsync
+	.endif
 
-	; R0 = vsync delta since last frame.
-	bl rocket_update
+	str r0, vsync_delta
+
+	.if 0 ; if need to double-buffer raster table.
+	bl rasters_copy_table
+	.endif
+
+	; DO STUFF HERE!
+	bl get_next_screen_for_writing
+	ldr r11, screen_addr
+
+	SET_BORDER 0x00ff00	; green
+	mov r0, #0x8888
+	orr r0, r0, r0, lsl #16
+	.if _DRAW_LOGO
+	bl logo_copy_and_cls
+	.endif
+
+	bl screen_cls
+
+	.if _LEMON_LOGOS
+	ldr r11, screen_addr
+	bl lemon_logos
+	.endif
+
+	SET_BORDER 0xff0000	; blue
+	ldr r11, screen_addr
+	.if _RUBBER_CUBE
+	bl draw_rubber_cube
+	.else
+	bl draw_3d_scene
+	.endif
+
+	SET_BORDER 0xffff00	; cyan
+	ldr r11, screen_addr
+	bl draw_scroller
 
 	; show debug
 	.if _DEBUG
 	bl debug_write_vsync_count
 	.endif
 
-	; DO STUFF HERE!
-	bl get_next_screen_for_writing
-	mov r0, #0
-	bl rocket_sync_get_val_hi
+	SET_BORDER 0x000000	; black
 	bl show_screen_at_vsync
 
 	; exit if Escape is pressed
-	MOV r0, #OSByte_ReadKey
-	MOV r1, #IKey_Escape
-	MOV r2, #0xff
-	SWI OS_Byte
-	
-	CMP r1, #0xff
-	CMPEQ r2, #0xff
-	BEQ exit
+	.if _ENABLE_RASTERMAN
+	swi RasterMan_ScanKeyboard
+	mov r1, #0xc0c0
+	cmp r0, r1
+	beq exit
+	.else
+	swi OS_ReadEscapeState
+	bcs exit
+	.endif
 	
 	b main_loop
 
@@ -174,10 +288,24 @@ error_noscreenmem:
 
 .if _DEBUG
 debug_write_vsync_count:
-	mov r0, #30
-	swi OS_WriteC
+	str lr, [sp, #-4]!
+	swi OS_WriteI+30			; home text cursor
 
+.if _ENABLE_ROCKET && 0
+	bl rocket_get_sync_time
+.else
+	ldr r0, vsync_delta			; or vsync_count
+.endif
+	adr r1, debug_string
+	mov r2, #8
+	swi OS_ConvertHex4
+
+	adr r0, debug_string
+	swi OS_WriteO
+	
 .if _ENABLE_MUSIC
+	swi OS_WriteI+32			; ' '
+
     ; read current tracker position
     mov r0, #-1
     mov r1, #-1
@@ -191,25 +319,19 @@ debug_write_vsync_count:
 	adr r0, debug_string
 	swi OS_WriteO
 
+	swi OS_WriteI+58			; ':'
+
 	mov r0, r3
 	adr r1, debug_string
 	mov r2, #8
 	swi OS_ConvertHex2
 	adr r0, debug_string
 	swi OS_WriteO
-.else
-	ldr r0, rocket_sync_time
-	adr r1, debug_string
-	mov r2, #8
-	swi OS_ConvertHex4
-
-	adr r0, debug_string
-	swi OS_WriteO
 .endif
-	mov pc, r14
+	ldr pc, [sp], #4
 
 debug_string:
-	.skip 8
+	.skip 16
 .endif
 
 get_screen_addr:
@@ -222,21 +344,22 @@ get_screen_addr:
 screen_addr_input:
 	.long VD_ScreenStart, -1
 
-screen_addr:
-	.long 0					; ptr to the current VIDC screen bank being written to.
-
 exit:	
 	; wait for vsync (any pending buffers)
-	mov r0, #19
-	swi OS_Byte
+	.if _ENABLE_RASTERMAN
+	swi RasterMan_Wait
+	swi RasterMan_Release
+	swi RasterMan_Wait
+	.endif
 
-.if _ENABLE_MUSIC
+	.if _ENABLE_MUSIC
 	; disable music
 	mov r0, #0
-	swi QTM_Stop
-.endif
+	swi QTM_Clear
+	.endif
 
 	; disable vsync event
+	.if !_ENABLE_RASTERMAN
 	mov r0, #OSByte_EventDisable
 	mov r1, #Event_VSync
 	swi OS_Byte
@@ -246,6 +369,7 @@ exit:
 	adr r1, event_handler
 	mov r2, #0
 	swi OS_Release
+	.endif
 
 	; release our error handler
 	mov r0, #ErrorV
@@ -262,9 +386,19 @@ exit:
 	ldr r1, scr_bank
 	swi OS_Byte
 
+	; CLS
+	mov r0, #12
+	SWI OS_WriteC
+
+	; Flush keyboard buffer.
+	mov r0, #15
+	mov r1, #1
+	swi OS_Byte
+
 	SWI OS_Exit
 
 ; R0=event number
+.if !_ENABLE_RASTERMAN
 event_handler:
 	cmp r0, #Event_VSync
 	movnes pc, r14
@@ -276,6 +410,7 @@ event_handler:
 	ADD r0, r0, #1
 	STR r0, vsync_count
 
+.if 0
 	; is there a new screen buffer ready to display?
 	LDR r1, buffer_pending
 	CMP r1, #0
@@ -330,29 +465,23 @@ event_handler:
 	TEQP r9, #0    ;Restore old mode
 	MOV r0, r0
 	LDMIA sp!, {r2-r12}
+.endif
+
 	LDMIA sp!, {r0-r1, pc}
-
-; TODO: rename these to be clearer.
-scr_bank:
-	.long 0				; current VIDC screen bank being written to.
-
-palette_block_addr:
-	.long 0				; (optional) ptr to a block of palette data for the screen bank being written to.
-
-vsync_count:
-	.long 0				; current vsync count from start of exe.
-
-last_vsync:
-	.long 0				; vsync count at start of previous frame.
-
-buffer_pending:
-	.long 0				; screen bank number to display at vsync.
-
-palette_pending:
-	.long 0				; (optional) ptr to a block of palette data to set at vsync.
+.endif
 
 error_handler:
 	STMDB sp!, {r0-r2, lr}
+	.if _ENABLE_RASTERMAN
+	swi RasterMan_Release
+	.endif
+
+	.if _ENABLE_MUSIC
+	; disable music
+	mov r0, #0
+	swi QTM_Clear
+	.endif
+.if !_ENABLE_RASTERMAN
 	MOV r0, #OSByte_EventDisable
 	MOV r1, #Event_VSync
 	SWI OS_Byte
@@ -360,6 +489,7 @@ error_handler:
 	ADR r1, event_handler
 	mov r2, #0
 	SWI OS_Release
+.endif
 	MOV r0, #ErrorV
 	ADR r1, error_handler
 	MOV r2, #0
@@ -373,10 +503,15 @@ error_handler:
 show_screen_at_vsync:
 	; Show current bank at next vsync
 	ldr r1, scr_bank
+.if 0
 	str r1, buffer_pending
 	; Including its associated palette
 	ldr r1, palette_block_addr
 	str r1, palette_pending
+.else
+	MOV r0, #OSByte_WriteDisplayBank
+	swi OS_Byte
+.endif
 	mov pc, lr
 
 get_next_screen_for_writing:
@@ -395,10 +530,129 @@ get_next_screen_for_writing:
 	b get_screen_addr
 
 ; ============================================================================
+; Global vars.
+; ============================================================================
+
+; TODO: rename these to be clearer.
+scr_bank:
+	.long 0				; current VIDC screen bank being written to.
+
+palette_block_addr:
+	.long 0				; (optional) ptr to a block of palette data for the screen bank being written to.
+
+vsync_count:
+	.long 0				; current vsync count from start of exe.
+
+last_vsync:
+	.long 0				; vsync count at start of previous frame.
+
+vsync_delta:
+	.long 0
+
+buffer_pending:
+	.long 0				; screen bank number to display at vsync.
+
+palette_pending:
+	.long 0				; (optional) ptr to a block of palette data to set at vsync.
+
+screen_addr:
+	.long 0				; ptr to the current VIDC screen bank being written to.
+
+
+; ============================================================================
 ; Additional code modules
 ; ============================================================================
 
+; R0=cls colour word
+; R11=screen ptr
+.if _DRAW_LOGO
+logo_copy_and_cls:
+	str lr, [sp, #-4]!
+	; Hacky hacky.
+	add r12, r11, #Screen_Stride * Logo_Y_Pos
+	bl screen_cls_with_end_ptr_set
+
+	; Copy logo data to screen.
+	adr r10, logo_data
+	adr r12, logo_end
+	sub r9, r12, r10
+
+.1:
+	ldmia r10!, {r1-r8}
+	stmia r11!, {r1-r8}
+	cmp r10, r12
+	blt .1
+
+	; Clear the rest of it.
+	add r12, r11, #Screen_Bytes
+	sub r12, r12, r9
+	ldr lr, [sp], #4
+	b screen_cls_with_end_ptr_set
+.endif
+
+.if _LEMON_LOGOS
+lemon_logos:
+	str lr, [sp, #-4]!
+	add r11, r11, #Screen_Stride * Logo_Y_Pos
+
+	adr r1, bit_string
+	mov r8, #0x00000000
+	mov r6, #0xffffffff
+	bl plot_string
+
+	adr r1, shifters_string
+	mov r8, #0xffffffff
+	mov r6, #0x00000000
+	bl plot_string
+
+	add r11, r11, #19*4
+	adr r1, slip_string
+	mov r8, #0x00000000
+	mov r6, #0xffffffff
+	bl plot_string
+
+	adr r1, stream_string
+	mov r8, #0xffffffff
+	mov r6, #0x00000000
+	bl plot_string
+
+	ldr pc, [sp], #4
+
+bit_string:
+	.byte "bit"
+	.byte 0
+	.align 4
+
+shifters_string:
+	.byte "shifters"
+	.byte 0
+	.align 4
+
+slip_string:
+	.byte "slip"
+	.byte 0
+	.align 4
+
+stream_string:
+	.byte "stream"
+	.byte 0
+	.align 4
+.endif
+
+.include "lib/maths.asm"
+.include "lib/3d-scene.asm"
+.include "lib/rubber-cube.asm"
+.include "lib/mode9-screen.asm"
+;.include "lib/mode9-plot.asm"
+.include "lib/mode9-palette.asm"
+.if _ENABLE_RASTERMAN
+.include "lib/rasters.asm"
+.endif
+.include "lib/scroller.asm"
+
+.if _ENABLE_ROCKET
 .include "lib/rocket.asm"
+.endif
 
 ; ============================================================================
 ; Data Segment
@@ -410,9 +664,48 @@ module_filename:
 	.align 4
 .endif
 
-; ============================================================================
-; BSS Segment
-; ============================================================================
+grey_palette:
+.if 0
+	.long 0x00000000
+	.long 0x00111111
+	.long 0x00222222
+	.long 0x00333333
+	.long 0x00444444
+	.long 0x00555555
+	.long 0x00666666
+	.long 0x00777777
+	.long 0x00888888
+	.long 0x00999999
+	.long 0x00AAAAAA
+	.long 0x00BBBBBB
+	.long 0x00CCCCCC
+	.long 0x00DDDDDD
+	.long 0x00EEEEEE
+	.long 0x00FFFFFF
+.else
+	.long 0x00000000
+	.long 0x000000ff
+	.long 0x0000ff00
+	.long 0x0000ffff
+	.long 0x00ff0000
+	.long 0x00ff00ff
+	.long 0x00ffff00
+	.long 0x00ffffff
+	.long 0x00888888
+	.long 0x00999999
+	.long 0x00AAAAAA
+	.long 0x00BBBBBB
+	.long 0x00CCCCCC
+	.long 0x00DDDDDD
+	.long 0x00EEEEEE
+	.long 0x00FFFFFF
+.endif
+
+.if _DRAW_LOGO
+logo_data:
+.incbin "data/logo.bin"
+logo_end:
+.endif
 
 palette_osword_block:
     .skip 8
@@ -422,3 +715,23 @@ palette_osword_block:
     ; green
     ; blue
     ; (pad)
+
+.align 4
+vidc_table_1:
+	.skip 256*4*4
+
+; TODO: Can we get rid of these?
+vidc_table_2:
+	.skip 256*4*4
+
+vidc_table_3:
+	.skip 256*8*4
+
+memc_table:
+	.skip 256*2*4
+
+.include "lib/tables.asm"
+
+; ============================================================================
+; BSS Segment
+; ============================================================================

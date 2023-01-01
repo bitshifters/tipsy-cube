@@ -7,6 +7,7 @@ FONTSIZE 0
 SPRITESIZE 0
 RMKILL MemAlloc 
 
-RMLOAD <Demo$Dir>.QTMModule
-wimpslot -min 960k -max 1600k
+RMLOAD <Demo$Dir>.QTM146c_24 { > null: }
+RMLOAD <Demo$Dir>.RasterM29 { > null: }
+wimpslot -min 1500K
 <Demo$Dir>.!RunImage

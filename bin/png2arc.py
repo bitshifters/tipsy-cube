@@ -4,6 +4,10 @@ import png,argparse,sys,math,arc
 ##########################################################################
 ##########################################################################
 
+# Read 1 byte from our input file
+def get_byte(file):
+    return ord(file.read(1))
+
 def save_file(data,path):
     if path is not None:
         with open(path,'wb') as f:
@@ -61,17 +65,30 @@ def main(options):
         print>>sys.stderr,'FATAL: too many colours: %d'%len(palette)
         sys.exit(1)
 
-    # Sort palette by intensity.
-    palette.sort(key=lambda e: e[0]*e[0]+e[1]*e[1]+e[2]*e[2])
+    if options.use_palette is not None:
+        # Open palette binary file.
+        palette_file = open(options.use_palette, 'rb')
 
-    if len(palette) < 16:
-        # Prefer entry 0 to be black, if not already.
-        if palette[0] != [0, 0, 0]:
-            palette.insert(0, [0, 0, 0])
+        palette=[]
+        for i in range(16):
+            r = get_byte(palette_file)
+            g = get_byte(palette_file)
+            b = get_byte(palette_file)
+            a = get_byte(palette_file)
+            palette.append([r, g, b])
 
-        # Pad end of palette with white:
-        while len(palette) < 16:
-            palette.append([255, 255, 255])
+    else:
+        # Sort palette by intensity.
+        palette.sort(key=lambda e: e[0]*e[0]+e[1]*e[1]+e[2]*e[2])
+
+        if len(palette) < 16:
+            # Prefer entry 0 to be black, if not already.
+            if palette[0] != [0, 0, 0]:
+                palette.insert(0, [0, 0, 0])
+
+            # Pad end of palette with white:
+            while len(palette) < 16:
+                palette.append([255, 255, 255])
 
     # Reading the file again seems wrong?
     png_result=png.Reader(filename=options.input_path).asRGBA8()
@@ -115,6 +132,7 @@ if __name__=='__main__':
     parser.add_argument('-o',dest='output_path',metavar='FILE',help='output ARC data to %(metavar)s')
     parser.add_argument('-p',dest='palette_path',metavar='FILE',help='output palette data to %(metavar)s')
     parser.add_argument('--loud',action='store_true',help='display warnings')
+    parser.add_argument('--use-palette',dest='use_palette',metavar='FILE',help='use palette binary data from %(metavar)s')
     parser.add_argument('input_path',metavar='FILE',help='load PNG data from %(metavar)s')
     parser.add_argument('mode',type=int,help='screen mode')
     main(parser.parse_args())

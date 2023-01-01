@@ -156,7 +156,8 @@ drawline_into_span_buffer:
 
 	b .1
 
-; R0=num verts, R1=buffer of vertices (x,y) as words, R4=colour
+; R0=num verts, R1=buffer of vertices (x,y) as words, R4=colour#
+; Assume this uses all registers!!!
 plot_polygon_span:
 	str lr, [sp, #-4]!			; push lr on stack
 	str r4, plot_polygon_colour
@@ -289,8 +290,9 @@ plot_polygon_colour:
 	.long 0
 
 ; R0=startx, R1=starty, R2=endx, R3=endy, R4=colour, R12=screen_addr
+; Trashes r5, r6, r7, r8, r9, r10, r11
 drawline:
-	str lr, [sp, #-4]!			; push lr on stack
+	stmfd sp!, {r6, r9-r11, lr}
 
 	subs r5, r2, r0				; r5 = dx = endx - startx
 	rsblt r5, r5, #0			; r5 = abs(dx)
@@ -312,7 +314,7 @@ drawline:
 .1:
 	cmp r0, r2					; x0 == x1?
 	cmpeq r1, r3				; y0 == y1?
-	ldreq pc, [sp], #4			; rts
+	ldmeqfd sp!, {r6, r9-r11, pc}	; rts
 
 	; there will be faster line plot algorithms by keeping track of
 	; screen pointer then flushing a byte or word when moving to next row

@@ -2,8 +2,14 @@
 ; Rocket sync
 ; ============================================================================
 
-.equ Pattern_Max, 23                ; TODO: automate from MOD file.
-.equ Tracks_Max, 5                  ; TODO: automate from tracks_list file.
+.equ Pattern_Max, 16                ; TODO: automate from MOD file.
+.equ Tracks_Max, 9                  ; TODO: automate from tracks_list file.
+.equ Podule_Number, 1               ; A3020 only has podule 1.
+                                    ; A440 likely in podule 3.
+.equ Patterns_All64Rows, 1          ; Helpful.
+.equ VsyncsPerRow, 6                ;
+
+.equ Sequence_MaxVsyncs, Pattern_Max*64*VsyncsPerRow
 
 rocket_sync_time:
 	.long 0
@@ -13,14 +19,14 @@ audio_is_playing:
 
 .if _SYNC_EDITOR
 
-podule3_base:
-    .long 0x300C000
+podule_base:
+    .long 0x3000000 | (0x4000 * Podule_Number)
 
-podule3_audio_is_playing:
-    .long 0x300FFFC
+podule_audio_is_playing:
+    .long 0x3003FFC | (0x4000 * Podule_Number)
 
-podule3_vsync_count:
-    .long 0x300FFF8
+podule_vsync_count:
+    .long 0x3003FF8 | (0x4000 * Podule_Number)
 
 ; All initialisation done by the Podule in Editor mode.
 rocket_init:
@@ -81,10 +87,10 @@ rocket_update:
 ; Returns R1 = 16.16 value
 ; Trashes R2, R3
 rocket_sync_get_val:
-    ldr r2, podule3_base
-    ldr r1, [r2, r0, lsl #3]        ; r3 = podule3_base[track_no * 8]
+    ldr r2, podule_base
+    ldr r1, [r2, r0, lsl #3]        ; r3 = podule_base[track_no * 8]
     add r2, r2, #4
-    ldr r3, [r2, r0, lsl #3]        ; r1 = podule3_base[track_no * 8 + 4]
+    ldr r3, [r2, r0, lsl #3]        ; r1 = podule_base[track_no * 8 + 4]
     orr r1, r1, r3, lsl #16         ; val = r3 << 16 | r1
     mov pc, lr
 
@@ -92,38 +98,38 @@ rocket_sync_get_val:
 ; Returns R1 = integer part only
 ; Trashes R2
 rocket_sync_get_val_hi:
-    ldr r2, podule3_base
+    ldr r2, podule_base
     add r2, r2, #4
-    ldr r1, [r2, r0, lsl #3]        ; r1 = podule3_base[track_no * 8 + 4]
+    ldr r1, [r2, r0, lsl #3]        ; r1 = podule_base[track_no * 8 + 4]
     mov pc, lr
 
 ; R0 = track no.
 ; Returns R1 = fractional part only
 ; Trashes R2
 rocket_sync_get_val_lo:
-    ldr r2, podule3_base
-    ldr r1, [r2, r0, lsl #3]        ; r1 = podule3_base[track_no * 8]
+    ldr r2, podule_base
+    ldr r1, [r2, r0, lsl #3]        ; r1 = podule_base[track_no * 8]
     mov pc, lr
 
 rocket_get_audio_is_playing:
-    ldr r2, podule3_audio_is_playing
+    ldr r2, podule_audio_is_playing
     ldr r0, [r2]
     mov pc, lr
 
 ; R0 = audio off (0) on (otherwise)
 rocket_set_audio_playing:
-    ldr r2, podule3_audio_is_playing
+    ldr r2, podule_audio_is_playing
     mov r1, r0, lsl #16             ; podule write to upper 16 bits
     str r1, [r2]
     mov pc, lr
 
 rocket_get_sync_time:
-    ldr r2, podule3_vsync_count
-    ldr r0, [r2]
+    ldr r0, podule_vsync_count
+    ldr r0, [r0]
     mov pc, lr
 
 rocket_set_sync_time:
-    ldr r2, podule3_vsync_count
+    ldr r2, podule_vsync_count
     mov r1, r0, lsl #16             ; podule write to upper 16 bits
     str r1, [r2]
     mov pc, lr
@@ -132,12 +138,14 @@ rocket_set_sync_time:
 ; Returns R0 = pattern, R1 = line
 ; Trashes R2, R3
 rocket_sync_time_to_music_pos:
+.if VsyncsPerRow == 4
 	mov r1, r0, lsr #2		; row = vsyncs / vpr; fixed speed = 4
 
 ; If all patterns are length 64 can just do this:
-;	mov r0, r1, lsr #6		; pattern = row DIV 64
-;	and r1, r1, #63			; line = row MOD 64
-
+.if Patterns_All64Rows
+	mov r0, r1, lsr #6		; pattern = row DIV 64
+	and r1, r1, #63			; line = row MOD 64
+.else
     adr r2, rocket_music_pattern_lengths
     mov r0, #0
     .1:
@@ -161,6 +169,39 @@ rocket_sync_time_to_music_pos:
     add r2, r2, r0, lsl #3
     ldr r3, [r2, #4]
     and r1, r1, r3          ; line in pattern
+.endif
+
+.else
+    ; NB. Assumes all patterns are 64 rows...
+    .if Patterns_All64Rows == 0
+    .error "This code assumes all patterns are 64 rows long!"
+    .endif
+
+    mov r2, #0
+    mov r3, #0
+.1:
+    cmp r0, #64*VsyncsPerRow
+    blt .2
+    sub r0, r0, #64*VsyncsPerRow
+    add r2, r2, #1
+    b .1
+.2:
+    ; R2=pattern
+    cmp r0, #VsyncsPerRow
+    blt .3
+    sub r0, r0, #VsyncsPerRow
+    add r3, r3, #1
+    b .2
+.3:
+    ; R3=row
+    mov r0, r2
+    mov r1, r3
+
+    ; clamp to end of song.
+    cmp r0, #Pattern_Max
+    movge r0, #Pattern_Max-1
+    movge r1, #63
+.endif
     mov pc, lr
 
 .macro pat_len start, len
@@ -171,6 +212,7 @@ rocket_sync_time_to_music_pos:
 
 ; TODO: automate from MOD file.
 ; BBPD MOD has short (32 line) patterns at 8, 15, 20, 21.
+.if !Patterns_All64Rows
 rocket_music_pattern_lengths:
     .set ps, 0
     pat_len ps, 64   ; 0
@@ -196,18 +238,23 @@ rocket_music_pattern_lengths:
     pat_len ps, 32   ; 20
     pat_len ps, 32   ; 21
     pat_len ps, 64   ; 22
+.endif
 
 .else
 
 ; Set up whatever track context is required per track.
 rocket_init:
     mov r0, #0
+    str r0, rocket_sync_time
+
     adr r1, tracks_table
     adr r4, tracks_context
     .1:
     ldr r2, [r1, r0, lsl #2]        ; track_data_offset = tracks_table[i]
     add r2, r2, r1                  ; track_ptr = track_data_offset + tracks_table
     ldr r3, [r2], #4                ; num_keys = *track_ptr++
+    ldr r5, [r2], #4                ; track_type = *track_ptr++
+    ; TODO: Handle track types other than TRACK_FLOAT.
     str r2, [r4], #4                ; track_context[i].ptr = track_ptr
     sub r3, r3, #1                  ; num_keys--
     add r2, r2, r3, lsl #3          ; track_end = track_ptr + 8 * (num_keys-1)
@@ -226,11 +273,18 @@ rocket_start:
 
 ; R0 = vsync delta since last update.
 rocket_update:
+    str lr, [sp, #-4]!
 	; Sequence can only move forwards when not connected to editor.
 	ldr r1, rocket_sync_time
 	add r1, r1, r0
 	str r1, rocket_sync_time
-    mov pc, lr
+
+    cmp r1, #Sequence_MaxVsyncs
+    blt .1
+    bl rocket_init
+
+.1:
+    ldr pc, [sp], #4
 
 ; R0 = track no.                    ; pass in sync time?
 ; Returns R1 = 16.16 value
@@ -314,27 +368,44 @@ tracks_context:
 
 ; TODO: automate this from track_list file.
 tracks_table:
-    .long track_stniccc_stniccc_frame - tracks_table
-    .long track_stniccc_show_image - tracks_table
-    .long track_stniccc_grey_scale - tracks_table
-    .long track_stniccc_fade_to_white - tracks_table
-    .long track_stniccc_fade_to_black - tracks_table
+    .long track_rubber_pos_x - tracks_table
+    .long track_rubber_pos_y - tracks_table
+    .long track_rubber_pos_z - tracks_table
+    .long track_rubber_rot_x - tracks_table
+    .long track_rubber_rot_y - tracks_table
+    .long track_rubber_rot_z - tracks_table
+    .long track_rubber_line_delay - tracks_table
+    .long track_rubber_line_split - tracks_table
+    .long track_rubber_y_pos - tracks_table
 
-track_stniccc_stniccc_frame:
-    .incbin "data/rocket/stniccc_stniccc_frame.track"
+track_rubber_pos_x:
+    .incbin "data/rocket/rubber_pos_x.track"
 
-track_stniccc_show_image:
-    .incbin "data/rocket/stniccc_show_image.track"
+track_rubber_pos_y:
+    .incbin "data/rocket/rubber_pos_y.track"
 
-track_stniccc_grey_scale:
-    .incbin "data/rocket/stniccc_grey_scale.track"
+track_rubber_pos_z:
+    .incbin "data/rocket/rubber_pos_z.track"
 
-track_stniccc_fade_to_white:
-    .incbin "data/rocket/stniccc_fade_to_white.track"
+track_rubber_rot_x:
+    .incbin "data/rocket/rubber_rot_x.track"
 
-track_stniccc_fade_to_black:
-    .incbin "data/rocket/stniccc_fade_to_black.track"
+track_rubber_rot_y:
+    .incbin "data/rocket/rubber_rot_y.track"
 
+track_rubber_rot_z:
+    .incbin "data/rocket/rubber_rot_z.track"
+
+track_rubber_line_delay:
+    .incbin "data/rocket/rubber_line_delay.track"
+
+track_rubber_line_split:
+    .incbin "data/rocket/rubber_line_split.track"
+
+track_rubber_y_pos:
+    .incbin "data/rocket/rubber_y_pos.track"
+
+; TODO: Use shared divide function.
 divisor_table:
     .long 0
     .set div, 1

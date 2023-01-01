@@ -32,6 +32,10 @@ getToken:           ldrb                r6,[r0]             ;/* get token */
                     bl                  copyData            ;/* copy literals (r2=src, r1=dst, r4=len) */
                     movs                r0,r2               ;/* update source pointer */
 
+; Exit if reached end of stream. Required to fix bug that writes 4 additional bytes beyond end of decompressed area.
+                    cmp                 r0,r5               ;/* check if we've reached the end of the compressed data */
+                    ldmgefd sp!,        {r4-r6,pc}          ;/* restore r4, r5 and r6, then return */
+
 getOffset:          ldrb                r3,[r0,#0]          ;/* get match offset's low byte */
                     subs                r2,r1,r3            ;/* subtract from destination; this will become the match position */
                     ldrb                r3,[r0,#1]          ;/* get match offset's high byte */
