@@ -94,8 +94,8 @@ main:
 	swi QTM_SoundControl
 
 	; Load module
-	adrl r0, module_filename
-	mov r1, #0
+	mov r0, #0
+	adr r1, music_data
 	swi QTM_Load
 .endif
 
@@ -658,12 +658,6 @@ stream_string:
 ; Data Segment
 ; ============================================================================
 
-.if _ENABLE_MUSIC
-module_filename:
-	.byte "<Demo$Dir>.Music",0
-	.align 4
-.endif
-
 grey_palette:
 .if 0
 	.long 0x00000000
@@ -705,6 +699,11 @@ grey_palette:
 logo_data:
 .incbin "build/logo.bin"
 logo_end:
+.endif
+
+.if _ENABLE_MUSIC
+music_data:
+.incbin "data/music/arcchoon.mod"
 .endif
 
 palette_osword_block:

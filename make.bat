@@ -36,7 +36,6 @@ if NOT EXIST %FOLDER% mkdir %FOLDER%
 echo Adding files...
 copy folder\*.* "%FOLDER%\*.*"
 copy build\tipsy-cube.bin "%FOLDER%\!RunImage,ff8"
-copy "data\music\arcchoon.mod" "%FOLDER%\Music,001"
 
 echo Copying !folder...
 set HOSTFS=..\arculator\hostfs
