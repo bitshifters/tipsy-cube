@@ -6,8 +6,11 @@ SCREENSIZE 120K
 FONTSIZE 0
 SPRITESIZE 0
 RMKILL MemAlloc 
-
+|
 RMLOAD <Demo$Dir>.QTM146c_24 { > null: }
 RMLOAD <Demo$Dir>.RasterM29 { > null: }
 wimpslot -min 1500K
 <Demo$Dir>.!RunImage
+|
+RMKILL RasterMan
+RMKILL QTMTracker

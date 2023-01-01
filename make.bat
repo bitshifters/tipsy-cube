@@ -8,15 +8,23 @@ echo Making assets..
 call make_assets.bat
 
 if %ERRORLEVEL% neq 0 (
-	echo Failed to make assets.
+	echo Failed to make  code.
 	exit /b 1
 )
 
 echo Assembling code...
-bin\vasmarm_std_win32.exe -L build\compile.txt -m250 -Fbin -opt-adr -o build\tipsy-cube.bin tipsy-cube.asm
+bin\vasmarm_std_win32.exe -L build\compile.txt -m250 -Fvobj -opt-adr -o build\tipsy-cube.o tipsy-cube.asm
 
 if %ERRORLEVEL% neq 0 (
 	echo Failed to assemble code.
+	exit /b 1
+)
+
+echo Linking code...
+bin\vlink.exe -T link_script.txt -b rawbin1 -o build\tipsy-cube.bin build\tipsy-cube.o -Mbuild\linker.txt
+
+if %ERRORLEVEL% neq 0 (
+	echo Failed to link code.
 	exit /b 1
 )
 

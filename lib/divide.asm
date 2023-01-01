@@ -30,6 +30,8 @@
 .equ Reciprocal_m, 9            ; Max value = 1<<m
 .equ Reciprocal_s, Reciprocal_t-Reciprocal_m    ; Table is (1<<16+s)/(x<<s)
 
+reciprocal_table_p:
+    .long reciprocal_table
 
 ; Divide R0 by R1
 ; Parameters:
@@ -57,7 +59,7 @@ divide:
     cmp r0, #0                  ; Test if result is zero
     moveq pc, lr
 
-    adr r9, reciprocal_table
+    ldr r9, reciprocal_table_p
 
     .if _DEBUG
     ; Limited precision.
@@ -131,7 +133,7 @@ divide:
 .if _USE_RECIPROCAL_TABLE
 ; Trashes: r0-r2, r8-r9, r12
 MakeReciprocal:
-    adr r12, reciprocal_table
+    ldr r12, reciprocal_table_p
     mov r2, #0
     str r2, [r12], #4
  

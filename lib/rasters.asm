@@ -14,10 +14,6 @@ rasters_init:
 	; Init tables.
 	adr r5, raster_tables
 	ldmia r5, {r0-r3}
-	add r0, r0, r5			; vidc table 1
-	add r1, r1, r5			; vidc table 2
-	add r2, r2, r5			; vidc table 3
-	add r3, r3, r5			; memc table
 	stmfd sp!, {r0-r3}
 
 	mov r4, #0
@@ -76,10 +72,10 @@ raster_list:
     .long 0xffffffff
 
 raster_tables:
-	.long vidc_table_1 - raster_tables
-	.long vidc_table_2 - raster_tables
-	.long vidc_table_3 - raster_tables
-	.long memc_table   - raster_tables
+	.long vidc_table_1
+	.long vidc_table_2
+	.long vidc_table_3
+	.long memc_table
 
 .if 0   ; if need to double-buffer raster table.
 rasters_copy_table:
