@@ -1,0 +1,4 @@
+build/
+\!Tipsy/
+*.pyc
+__pycache__/

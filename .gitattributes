@@ -1,0 +1,11 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+# The app folder files are copied into the release as-is: keep them byte-exact on every checkout.
+folder/** -text
+*.mod binary
+*.png binary
+*.exe binary
+*.dll binary
+*.track binary
+*,ffa binary
+*,ff9 binary
